@@ -38,7 +38,12 @@ Executable picker
     parsec,
     bytestring,
     mime-types,
-    text
+    text,
+    resourcet,
+    mtl,
+    meldable-heap,
+    strict-concurrency,
+    deepseq
   default-extensions:
     TupleSections
     LambdaCase
