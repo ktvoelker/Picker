@@ -1,0 +1,47 @@
+
+name:           Picker
+version:        0.0.1
+cabal-version:  >= 1.10
+build-type:     Simple
+license:        GPL-3
+license-file:   LICENSE.txt
+copyright:      (c) 2012 Karl Voelker
+author:         Karl Voelker
+maintainer:     ktvoelker@gmail.com
+stability:      experimental
+bug-reports:    mailto:ktvoelker@gmail.com
+synopsis:       Picker
+category:       Tools
+tested-with:    GHC == 7.6.3
+
+Executable picker
+  main-is:          Main.hs
+  default-language: Haskell2010
+  hs-source-dirs:   src
+  ghc-options:
+    -Wall
+    -Werror
+    -fno-warn-name-shadowing
+    -fno-warn-missing-signatures
+    -fno-warn-orphans
+  build-depends:
+    base                 >= 4    && < 5,
+    containers           >= 0.4  && < 0.6,
+    data-lens            >= 2.10 && < 2.11,
+    data-lens-fd         >= 2.0  && < 2.1,
+    data-lens-template   >= 2.1  && < 2.2,
+    transformers,
+    system-filepath,
+    system-fileio,
+    vty,
+    vty-ui,
+    parsec,
+    bytestring,
+    mime-types,
+    text
+  default-extensions:
+    TupleSections
+    LambdaCase
+  other-extensions:
+    TemplateHaskell
+
