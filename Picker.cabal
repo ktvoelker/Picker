@@ -41,12 +41,11 @@ Executable picker
     text,
     resourcet,
     mtl,
-    meldable-heap,
-    strict-concurrency,
-    deepseq
+    meldable-heap
   default-extensions:
     TupleSections
     LambdaCase
   other-extensions:
     TemplateHaskell
+    BangPatterns
 
