@@ -6,49 +6,41 @@ import Prelude hiding (FilePath)
 
 import Control.Concurrent
 import Control.Monad
-import Control.Monad.State
-import Control.Monad.Trans.Resource
-import Data.Lens
-import qualified Data.MeldableHeap as PQ
-import Filesystem.Path.CurrentOS
-import Graphics.Vty
-
+import Control.Monad.Reader
+import qualified Data.Text as T
+import Graphics.Vty.Attributes
+import Graphics.Vty.Widgets.All
 import View.Types
 
-sendViewCommand :: (MonadIO m) => ViewCommand -> ViewHandle -> m ()
-sendViewCommand !cmd hnd = liftIO $ writeChan (getChan hnd) cmd
+runView :: (MonadIO m) => ViewOptions -> ReaderT View m a -> m a
+runView opts rdr = do
+  view <- liftIO $ do
+    (root, fg, view) <- makeWidgets opts
+    coll <- newCollection
+    void $ addToCollection coll root fg
+    void $ forkIO $ runUi coll defaultContext
+    return view
+  runReaderT rdr view
 
-newView :: (MonadResource m) => ViewOptions -> ResourceT m ViewHandle
-newView opts = do
-  chan <- liftIO $ newChan
-  view <- liftM (View opts PQ.empty chan . snd) $ allocate mkVty shutdown
-  void $ liftM snd $ allocate (forkIO $ runView view) killThread
-  return $ ViewHandle chan
+makeWidgets opts = do
+  title   <- plainText "Picker"
+  query   <- editWidget
+  results <- newTextList def_attr []
+  scroll  <- newProgressBar def_attr def_attr
+  top     <- vBox title query
+  bottom  <- hBox results scroll
+  all     <- vBox top bottom
+  fg      <- newFocusGroup
+  void $ addToFocusGroup fg query
+  return (all, fg, View opts query results scroll)
 
-runView :: View -> IO ()
-runView = evalStateT $ render >> viewLoop
+addResult :: (MonadIO m) => T.Text -> ReaderT View m ()
+addResult !xs = do
+  rs <- asks _vResults
+  liftIO $ do
+    tw <- plainText xs
+    schedule $ addToList rs xs tw
 
-viewLoop :: M ()
-viewLoop =
-  access vChan
-  >>= liftIO . getChanContents
-  >>= mapM_ runViewCommand . takeWhile (/= Shutdown)
-
-runViewCommand :: ViewCommand -> M ()
-runViewCommand (AddResult n xs) = addResult n $ fromText xs
-runViewCommand ClearResults = clearResults
-runViewCommand Shutdown = error "runViewCommand Shutdown"
-
-addResult :: Integer -> FilePath -> M ()
-addResult n fp = do
-  void $ vResults %= PQ.insert (n, fp)
-  render
-
-clearResults :: M ()
-clearResults = do
-  void $ vResults ~= PQ.empty
-  render
-
-render :: M ()
-render = undefined
+clearResults :: (MonadIO m) => ReaderT View m ()
+clearResults = asks _vResults >>= liftIO . clearList
 

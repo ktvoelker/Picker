@@ -45,6 +45,7 @@ Executable picker
   default-extensions:
     TupleSections
     LambdaCase
+    OverloadedStrings
   other-extensions:
     TemplateHaskell
     BangPatterns
