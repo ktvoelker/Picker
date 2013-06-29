@@ -11,7 +11,7 @@ import Query.Types
 
 -- TODO
 evalQuery :: (MonadIO m) => Query -> (T.Text -> IO ()) -> m ()
-evalQuery (QText xs _) cb = liftIO $ mapM_ cb $ T.inits xs
+evalQuery (QText xs _) cb = liftIO $ mapM_ cb $ drop 1 $ T.inits xs
 evalQuery _ _ = undefined
 
 -- TODO
