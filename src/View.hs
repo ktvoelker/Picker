@@ -1,31 +1,62 @@
 
 {-# LANGUAGE BangPatterns #-}
-module View where
+module View
+  ( View()
+  , ViewOptions(..)
+  , startView
+  , waitForView
+  , addResult
+  , clearResults
+  ) where
 
 import Prelude hiding (FilePath)
 
 import Control.Concurrent
 import Control.Monad
-import Control.Monad.Reader
+import Control.Monad.Trans
 import qualified Data.Text as T
 import Graphics.Vty.Attributes
+import Graphics.Vty.LLInput
 import Graphics.Vty.Widgets.All
 import View.Types
 
-runView :: (MonadIO m) => ViewOptions -> ReaderT View m a -> m a
-runView opts rdr = do
-  view <- liftIO $ do
-    (root, fg, view) <- makeWidgets opts
-    coll <- newCollection
-    void $ addToCollection coll root fg
-    void $ forkIO $ runUi coll defaultContext
-    return view
-  runReaderT rdr view
+startView :: (MonadIO m) => ViewOptions -> m View
+startView opts = liftIO $ do
+  (root, fg, mkView) <- makeWidgets opts
+  coll <- newCollection
+  void $ addToCollection coll root fg
+  stopped <- newEmptyMVar
+  void $ forkIO $ do
+    runUi coll defaultContext
+    putMVar stopped ()
+  return $ mkView stopped
+
+waitForView :: (MonadIO m) => View -> m ()
+waitForView = liftIO . takeMVar . _vStopped
 
 makeWidgets opts = do
   title   <- plainText "Picker"
   query   <- editWidget
+  onChange query $ _voQueryHandler opts
   results <- newTextList def_attr []
+  onItemActivated results $ _voResultHandler opts . Just . evText
+  onActivate query $ const $ activateCurrentItem results
+  onKeyPressed query $ \_ key _ -> do
+    case key of
+      KEsc -> do
+        _voResultHandler opts Nothing
+        shutdownUi
+        return True
+      KASCII '\t' -> do
+        n  <- getListSize results
+        mi <- getSelected results
+        case mi of
+          _ | n == 0 -> return ()
+          Nothing -> setSelected results 0
+          Just (i, _) | i == n -> setSelected results 0
+          Just (i, _) -> setSelected results (i + 1)
+        return True
+      _ -> return False
   scroll  <- newProgressBar def_attr def_attr
   top     <- vBox title query
   bottom  <- hBox results scroll
@@ -33,14 +64,16 @@ makeWidgets opts = do
   fg      <- newFocusGroup
   void $ addToFocusGroup fg query
   return (all, fg, View opts query results scroll)
+  where
+    evText (ActivateItemEvent _ xs _) = xs
 
-addResult :: (MonadIO m) => T.Text -> ReaderT View m ()
-addResult !xs = do
-  rs <- asks _vResults
-  liftIO $ do
-    tw <- plainText xs
-    schedule $ addToList rs xs tw
+addResult :: (MonadIO m) => View -> T.Text -> m ()
+addResult View{ _vResults = !rs } !xs = liftIO $ do
+  tw <- plainText xs
+  schedule $ do
+    addToList rs xs tw
+    getSelected rs >>= maybe (setSelected rs 0) (const $ return ())
 
-clearResults :: (MonadIO m) => ReaderT View m ()
-clearResults = asks _vResults >>= liftIO . clearList
+clearResults :: (MonadIO m) => View -> m ()
+clearResults View{ _vResults = !rs } = liftIO $ clearList rs
 

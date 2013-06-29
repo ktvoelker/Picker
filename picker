@@ -1,1 +1,1 @@
-./cabal-dev/bin/picker
+dist/build/picker/picker
