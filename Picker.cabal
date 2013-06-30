@@ -44,7 +44,8 @@ Executable picker
     text,
     resourcet,
     mtl,
-    meldable-heap
+    meldable-heap,
+    multiset
   default-extensions:
     TupleSections
     LambdaCase

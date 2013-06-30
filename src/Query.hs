@@ -4,7 +4,9 @@ module Query where
 import Prelude hiding (FilePath)
 
 import Control.Monad.Reader
-import Data.List
+import qualified Data.List as L
+import Data.Maybe
+import qualified Data.MultiSet as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -25,7 +27,7 @@ ignoreFile :: FilePath -> IO Bool
 ignoreFile = const $ return False
 
 partitionM :: (Monad m) => (a -> m Bool) -> [a] -> m ([a], [a])
-partitionM pred = liftM (f . partition snd) . mapM (\x -> liftM (x,) $ pred x)
+partitionM pred = liftM (f . L.partition snd) . mapM (\x -> liftM (x,) $ pred x)
   where
     f (xs, ys) = (map fst xs, map fst ys)
 
@@ -41,22 +43,28 @@ listFiles dir = do
       return $ fs ++ ss
 
 -- TODO
-score :: Query -> FilePath -> [Integer]
+score :: M.MultiSet (T.Text, QueryTokenAttr) -> [T.Text] -> [Integer]
 score = undefined
 
 enc = either (error "Unexpected encoding in a FilePath") id . toText
 
+fileAsList :: FilePath -> [T.Text]
+fileAsList = map enc . reverse . splitDirectories
+
 evalQuery :: (MonadIO m) => Query -> (T.Text -> IO ()) -> m ()
 evalQuery q cb = liftIO $ do
-  fs <- getWorkingDirectory >>= listFiles
-  let ss = map snd $ sort $ filter (any (> 0) . fst) $ map (\f -> (score q f, f)) fs
-  mapM_ (cb . enc) ss
+  let wd = fromText "."
+  files <- listFiles wd
+  let strippedFiles = catMaybes . map (stripPrefix wd) $ files
+  let scoredFiles = map (\f -> (score (qTokens q) (fileAsList f), f)) strippedFiles
+  let results = map snd $ L.sort $ filter (any (> 0) . fst) $ scoredFiles
+  mapM_ (cb . enc) results
 
 parseQuery :: T.Text -> Query
 parseQuery xs = Query tokens mimeTypes
   where
-    (rawTokens, rawMimeTypes) = partition (":" `T.isPrefixOf`) . T.words $ xs
-    tokens = map f rawTokens
+    (rawTokens, rawMimeTypes) = L.partition (":" `T.isPrefixOf`) . T.words $ xs
+    tokens = M.fromList . map f $ rawTokens
     f token | "/" `T.isSuffixOf` token = (T.init token, DirOnly)
     f token = (token, DirOrFile)
     mimeTypes = S.fromList . map TE.encodeUtf8 $ rawMimeTypes
