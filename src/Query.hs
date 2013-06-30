@@ -43,9 +43,27 @@ listFiles dir = do
       ss <- liftM concat $ mapM listFiles ds
       return $ fs ++ ss
 
--- TODO
+scoreOne :: M.MultiSet T.Text -> T.Text -> (Integer, M.MultiSet T.Text)
+scoreOne qs f = (fromIntegral (M.size ys), ns)
+  where
+    (ys, ns) = M.partition (`T.isInfixOf` f) qs
+
+scoreDir :: M.MultiSet T.Text -> [T.Text] -> [Integer]
+scoreDir _ [] = []
+scoreDir qs (d : ds) = dScore : dScores
+  where
+    (dScore, qs') = scoreOne qs d
+    dScores = scoreDir qs' ds
+
 score :: M.MultiSet (T.Text, QueryTokenAttr) -> [T.Text] -> [Integer]
-score _ _ = [1]
+score _ [] = []
+score qs (f : ds) = fScore : dScores
+  where
+    (fqs, dqs) = M.partition ((== DirOrFile) . snd) $ qs
+    fqs' = M.map fst fqs
+    dqs' = M.map fst dqs
+    (fScore, fqs'') = scoreOne fqs' f
+    dScores = scoreDir (M.union fqs'' dqs') ds
 
 enc = either (error "Unexpected encoding in a FilePath") id . toText
 
