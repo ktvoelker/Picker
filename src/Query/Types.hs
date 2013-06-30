@@ -2,21 +2,14 @@
 module Query.Types where
 
 import Network.Mime
-import Data.Text
+import qualified Data.Set as S
+import qualified Data.Text as T
 
-data BinOp = And | Or deriving (Show)
-
-data TextQual =
-  TextQual
-  { tqInRoot :: Bool
-  , tqIsDir  :: Bool
-  } deriving (Show)
+data QueryTokenAttr = DirOnly | DirOrFile deriving (Eq, Ord, Show)
 
 data Query =
-    QBinOp BinOp Query Query
-  | QNot Query
-  | QConst Bool
-  | QText Text TextQual
-  | QMime MimeType
-  deriving (Show)
+  Query
+  { qTokens    :: [(T.Text, QueryTokenAttr)]
+  , qMimeTypes :: S.Set MimeType
+  } deriving (Eq, Show)
 

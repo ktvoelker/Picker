@@ -4,7 +4,10 @@ module Query where
 import Prelude hiding (FilePath)
 
 import Control.Monad.Reader
+import Data.List
+import qualified Data.Set as S
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import Filesystem
 import Filesystem.Path.CurrentOS
 
@@ -46,7 +49,13 @@ runM q cb m = runReaderT m (E q cb)
 evalQuery :: (MonadIO m) => Query -> (T.Text -> IO ()) -> m ()
 evalQuery q cb = liftIO $ getWorkingDirectory >>= runM q cb . evalAny
 
--- TODO
 parseQuery :: T.Text -> Query
-parseQuery = flip QText $ TextQual False False
+parseQuery xs = Query tokens mimeTypes
+  where
+    (rawTokens, rawMimeTypes) = partition (":" `T.isPrefixOf`) . T.words $ xs
+    tokens = map f rawTokens
+    f token | "/" `T.isSuffixOf` token = (T.init token, DirOnly)
+    f token = (token, DirOrFile)
+    mimeTypes = S.fromList . map TE.encodeUtf8 $ rawMimeTypes
+    
 
