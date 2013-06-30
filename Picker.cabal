@@ -45,11 +45,13 @@ Executable picker
     resourcet,
     mtl,
     meldable-heap,
-    multiset
+    multiset,
+    vector
   default-extensions:
     TupleSections
     LambdaCase
     OverloadedStrings
+    RecordWildCards
   other-extensions:
     TemplateHaskell
     BangPatterns

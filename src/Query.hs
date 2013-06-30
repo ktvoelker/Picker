@@ -13,6 +13,7 @@ import qualified Data.Text.Encoding as TE
 import Filesystem
 import Filesystem.Path.CurrentOS hiding (concat)
 
+import MaxN
 import Query.Types
 
 data E = E { eQuery :: Query, eCallback :: T.Text -> IO () }
@@ -44,7 +45,7 @@ listFiles dir = do
 
 -- TODO
 score :: M.MultiSet (T.Text, QueryTokenAttr) -> [T.Text] -> [Integer]
-score = undefined
+score _ _ = [1]
 
 enc = either (error "Unexpected encoding in a FilePath") id . toText
 
@@ -57,7 +58,9 @@ evalQuery q cb = liftIO $ do
   files <- listFiles wd
   let strippedFiles = catMaybes . map (stripPrefix wd) $ files
   let scoredFiles = map (\f -> (score (qTokens q) (fileAsList f), f)) strippedFiles
-  let results = map snd $ L.sort $ filter (any (> 0) . fst) $ scoredFiles
+  let maxn = foldr MaxN.insert (MaxN.empty 10) scoredFiles
+  let results = map snd $ filter (any (> 0) . fst) $ MaxN.toList maxn
+  -- TODO if a mime-type filter was given, apply it here
   mapM_ (cb . enc) results
 
 parseQuery :: T.Text -> Query
