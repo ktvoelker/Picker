@@ -9,7 +9,7 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Filesystem
-import Filesystem.Path.CurrentOS
+import Filesystem.Path.CurrentOS hiding (concat)
 
 import Query.Types
 
@@ -17,37 +17,40 @@ data E = E { eQuery :: Query, eCallback :: T.Text -> IO () }
 
 type M = ReaderT E IO
 
--- TODO
-evalDir' :: Query -> FilePath -> Bool
-evalDir' = undefined
-
-evalDir :: FilePath -> M ()
-evalDir fp = do
-  q <- asks eQuery
-  when (evalDir' q fp) $ liftIO (listDirectory fp) >>= mapM_ evalAny
+ignoreDir :: FilePath -> IO Bool
+ignoreDir = const $ return False
 
 -- TODO
-evalFile' :: Query -> FilePath -> Bool
-evalFile' = undefined
+ignoreFile :: FilePath -> IO Bool
+ignoreFile = const $ return False
 
-evalFile :: FilePath -> M ()
-evalFile fp = do
-  q <- asks eQuery
-  when (evalFile' q fp) $ asks eCallback >>= liftIO . ($ fp')
+partitionM :: (Monad m) => (a -> m Bool) -> [a] -> m ([a], [a])
+partitionM pred = liftM (f . partition snd) . mapM (\x -> liftM (x,) $ pred x)
   where
-    fp' = either (error "Unexpected encoding in a FilePath") id $ toText fp
+    f (xs, ys) = (map fst xs, map fst ys)
 
-evalAny :: FilePath -> M ()
-evalAny fp = liftM2 (,) (liftIO $ isDirectory fp) (liftIO $ isFile fp) >>= \case
-  (True, False) -> evalDir fp
-  (False, True) -> evalFile fp
-  _             -> return ()
+listFiles :: FilePath -> IO [FilePath]
+listFiles dir = do
+  ignoreDir dir >>= \case
+    True -> return []
+    False -> do
+      cs <- listDirectory dir
+      (ds, cs') <- partitionM isDirectory cs
+      fs <- filterM isFile cs'
+      ss <- liftM concat $ mapM listFiles ds
+      return $ fs ++ ss
 
-runM :: Query -> (T.Text -> IO ()) -> M a -> IO a
-runM q cb m = runReaderT m (E q cb)
+-- TODO
+score :: Query -> FilePath -> [Integer]
+score = undefined
+
+enc = either (error "Unexpected encoding in a FilePath") id . toText
 
 evalQuery :: (MonadIO m) => Query -> (T.Text -> IO ()) -> m ()
-evalQuery q cb = liftIO $ getWorkingDirectory >>= runM q cb . evalAny
+evalQuery q cb = liftIO $ do
+  fs <- getWorkingDirectory >>= listFiles
+  let ss = map snd $ sort $ filter (any (> 0) . fst) $ map (\f -> (score q f, f)) fs
+  mapM_ (cb . enc) ss
 
 parseQuery :: T.Text -> Query
 parseQuery xs = Query tokens mimeTypes
