@@ -10,6 +10,7 @@ import qualified Data.MultiSet as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.IO as TIO
 import Filesystem
 import Filesystem.Path.CurrentOS hiding (concat)
 
@@ -68,7 +69,7 @@ score qs (f : ds) = fScore : dScores
 enc = either (error "Unexpected encoding in a FilePath") id . toText
 
 fileAsList :: FilePath -> [T.Text]
-fileAsList = map enc . reverse . splitDirectories
+fileAsList = map (T.toLower . enc) . reverse . splitDirectories
 
 evalQuery :: (MonadIO m) => Query -> (T.Text -> IO ()) -> m ()
 evalQuery q cb = liftIO $ do
@@ -84,10 +85,13 @@ evalQuery q cb = liftIO $ do
 parseQuery :: T.Text -> Query
 parseQuery xs = Query tokens mimeTypes
   where
-    (rawTokens, rawMimeTypes) = L.partition (":" `T.isPrefixOf`) . T.words $ xs
+    words = T.words . T.toLower $ xs
+    (rawMimeTypes, rawTokens) = L.partition (":" `T.isPrefixOf`) words
     tokens = M.fromList . map f $ rawTokens
     f token | "/" `T.isSuffixOf` token = (T.init token, DirOnly)
     f token = (token, DirOrFile)
     mimeTypes = S.fromList . map TE.encodeUtf8 $ rawMimeTypes
     
+debugQuery :: (MonadIO m) => T.Text -> m ()
+debugQuery xs = let q = parseQuery xs in liftIO $ print q >> evalQuery q TIO.putStrLn
 

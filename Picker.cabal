@@ -33,20 +33,16 @@ Executable picker
     data-lens            >= 2.10 && < 2.11,
     data-lens-fd         >= 2.0  && < 2.1,
     data-lens-template   >= 2.1  && < 2.2,
+    mtl,
     transformers,
     system-filepath,
     system-fileio,
     vty,
     vty-ui,
-    parsec,
     bytestring,
     mime-types,
     text,
-    resourcet,
-    mtl,
-    meldable-heap,
-    multiset,
-    vector
+    multiset
   default-extensions:
     TupleSections
     LambdaCase
