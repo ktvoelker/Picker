@@ -21,12 +21,32 @@ data E = E { eQuery :: Query, eCallback :: T.Text -> IO () }
 
 type M = ReaderT E IO
 
-ignoreDir :: FilePath -> IO Bool
-ignoreDir = const $ return False
+isDotFile = ("." `T.isPrefixOf`) . enc . filename
 
--- TODO
-ignoreFile :: FilePath -> IO Bool
-ignoreFile = const $ return False
+ignoreDirs :: S.Set T.Text
+ignoreDirs = S.fromList ["cabal-dev", "dist", "ENV", "_darcs"]
+
+ignoreDir :: FilePath -> Bool
+ignoreDir fp = isDotFile fp || (enc . filename $ fp) `S.member` ignoreDirs
+
+binExts :: S.Set T.Text
+binExts = S.fromList
+  -- Native code
+  [ "o", "a", "so", "dylib", "dll", "la"
+  -- Other binary executables
+  , "hi", "pyc"
+  -- Archives and compressed formats
+  , "tar", "gz", "xz", "bz2", "zip", "tgz", "tbz", "rar"
+  -- Images
+  , "jpg", "jpeg", "png", "gif", "bmp", "eps", "cr2", "dng"
+  -- Documents
+  , "pdf", "odf", "ods", "odp", "ps"
+  ]
+
+ignoreFile :: FilePath -> Bool
+ignoreFile fp = isDotFile fp || isBinFile
+  where
+    isBinFile = maybe False (`S.member` binExts) $ extension fp
 
 partitionM :: (Monad m) => (a -> m Bool) -> [a] -> m ([a], [a])
 partitionM pred = liftM (f . L.partition snd) . mapM (\x -> liftM (x,) $ pred x)
@@ -34,15 +54,12 @@ partitionM pred = liftM (f . L.partition snd) . mapM (\x -> liftM (x,) $ pred x)
     f (xs, ys) = (map fst xs, map fst ys)
 
 listFiles :: FilePath -> IO [FilePath]
-listFiles dir = do
-  ignoreDir dir >>= \case
-    True -> return []
-    False -> do
-      cs <- listDirectory dir
-      (ds, cs') <- partitionM isDirectory cs
-      fs <- filterM isFile cs'
-      ss <- liftM concat $ mapM listFiles ds
-      return $ fs ++ ss
+listFiles dir = if ignoreDir dir then return [] else do
+  cs <- listDirectory dir
+  (ds, cs') <- partitionM isDirectory cs
+  fs <- filterM isFile . filter (not . ignoreFile) $ cs'
+  ss <- liftM concat $ mapM listFiles ds
+  return $ fs ++ ss
 
 scoreOne :: M.MultiSet T.Text -> T.Text -> (Integer, M.MultiSet T.Text)
 scoreOne qs f = (fromIntegral (M.size ys), ns)
@@ -69,7 +86,7 @@ score qs (f : ds) = fScore : dScores
 enc = either (error "Unexpected encoding in a FilePath") id . toText
 
 fileAsList :: FilePath -> [T.Text]
-fileAsList = map (T.toLower . enc) . reverse . splitDirectories
+fileAsList = map (T.toCaseFold . enc) . reverse . splitDirectories
 
 evalQuery :: (MonadIO m) => Query -> (T.Text -> IO ()) -> m ()
 evalQuery q cb = liftIO $ do
@@ -85,7 +102,7 @@ evalQuery q cb = liftIO $ do
 parseQuery :: T.Text -> Query
 parseQuery xs = Query tokens mimeTypes
   where
-    words = T.words . T.toLower $ xs
+    words = T.words . T.toCaseFold $ xs
     (rawMimeTypes, rawTokens) = L.partition (":" `T.isPrefixOf`) words
     tokens = M.fromList . map f $ rawTokens
     f token | "/" `T.isSuffixOf` token = (T.init token, DirOnly)

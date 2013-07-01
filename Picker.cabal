@@ -42,7 +42,8 @@ Executable picker
     bytestring,
     mime-types,
     text,
-    multiset
+    multiset,
+    process
   default-extensions:
     TupleSections
     LambdaCase
