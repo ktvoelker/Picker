@@ -65,16 +65,21 @@ scoreOne qs f = (fromIntegral (M.size ys), ns)
   where
     (ys, ns) = M.partition (`T.isInfixOf` f) qs
 
-scoreDir :: M.MultiSet T.Text -> [T.Text] -> [Integer]
-scoreDir _ [] = []
-scoreDir qs (d : ds) = dScore : dScores
+scoreNull :: M.MultiSet a -> Maybe [b]
+scoreNull qs
+  | M.null qs = Just []
+  | otherwise = Nothing
+
+scoreDir :: M.MultiSet T.Text -> [T.Text] -> Maybe [Integer]
+scoreDir qs [] = scoreNull qs
+scoreDir qs (d : ds) = fmap (dScore :) dScores
   where
     (dScore, qs') = scoreOne qs d
     dScores = scoreDir qs' ds
 
-score :: Query -> [T.Text] -> [Integer]
-score _ [] = []
-score qs (f : ds) = fScore : dScores
+score :: Query -> [T.Text] -> Maybe [Integer]
+score qs [] = scoreNull qs
+score qs (f : ds) = fmap (fScore :) dScores
   where
     (fqs, dqs) = M.partition ((== DirOrFile) . snd) $ qs
     fqs' = M.map fst fqs
@@ -92,8 +97,8 @@ evalQuery q cb = liftIO $ do
   let wd = fromText "."
   files <- listFiles wd
   let strippedFiles = catMaybes . map (stripPrefix wd) $ files
-  let scoredFiles = map (\f -> (score q (fileAsList f), f)) strippedFiles
-  let maxn = foldr MaxN.insert (MaxN.empty 10) scoredFiles
+  let scoredFiles = map (\f -> fmap (, f) . score q . fileAsList $ f) strippedFiles
+  let maxn = foldr MaxN.insert (MaxN.empty 10) $ catMaybes scoredFiles
   let results = map snd $ filter (any (> 0) . fst) $ MaxN.toList maxn
   mapM_ (cb . enc) results
 
