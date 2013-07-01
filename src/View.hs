@@ -90,5 +90,5 @@ addResult View{ _vResults = !rs } !xs = liftIO $ do
     getSelected rs >>= maybe (setSelected rs 0) (const $ return ())
 
 clearResults :: (MonadIO m) => View -> m ()
-clearResults View{ _vResults = !rs } = liftIO $ clearList rs
+clearResults View{ _vResults = !rs } = liftIO $ schedule $ clearList rs
 

@@ -9,7 +9,6 @@ import Data.Maybe
 import qualified Data.MultiSet as M
 import qualified Data.Set as S
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Filesystem
 import Filesystem.Path.CurrentOS hiding (concat)
@@ -73,7 +72,7 @@ scoreDir qs (d : ds) = dScore : dScores
     (dScore, qs') = scoreOne qs d
     dScores = scoreDir qs' ds
 
-score :: M.MultiSet (T.Text, QueryTokenAttr) -> [T.Text] -> [Integer]
+score :: Query -> [T.Text] -> [Integer]
 score _ [] = []
 score qs (f : ds) = fScore : dScores
   where
@@ -93,21 +92,18 @@ evalQuery q cb = liftIO $ do
   let wd = fromText "."
   files <- listFiles wd
   let strippedFiles = catMaybes . map (stripPrefix wd) $ files
-  let scoredFiles = map (\f -> (score (qTokens q) (fileAsList f), f)) strippedFiles
+  let scoredFiles = map (\f -> (score q (fileAsList f), f)) strippedFiles
   let maxn = foldr MaxN.insert (MaxN.empty 10) scoredFiles
   let results = map snd $ filter (any (> 0) . fst) $ MaxN.toList maxn
-  -- TODO if a mime-type filter was given, apply it here
   mapM_ (cb . enc) results
 
 parseQuery :: T.Text -> Query
-parseQuery xs = Query tokens mimeTypes
+parseQuery xs = tokens
   where
     words = T.words . T.toCaseFold $ xs
-    (rawMimeTypes, rawTokens) = L.partition (":" `T.isPrefixOf`) words
-    tokens = M.fromList . map f $ rawTokens
+    tokens = M.fromList . map f $ words
     f token | "/" `T.isSuffixOf` token = (T.init token, DirOnly)
     f token = (token, DirOrFile)
-    mimeTypes = S.fromList . map TE.encodeUtf8 $ rawMimeTypes
     
 debugQuery :: (MonadIO m) => T.Text -> m ()
 debugQuery xs = let q = parseQuery xs in liftIO $ print q >> evalQuery q TIO.putStrLn

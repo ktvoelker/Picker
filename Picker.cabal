@@ -39,11 +39,8 @@ Executable picker
     system-fileio,
     vty,
     vty-ui,
-    bytestring,
-    mime-types,
     text,
-    multiset,
-    process
+    multiset
   default-extensions:
     TupleSections
     LambdaCase
