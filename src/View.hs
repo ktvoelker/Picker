@@ -65,11 +65,12 @@ addListeners view = do
   let results = vResults ^$ view
   onChange query $ voQueryHandler ^$ opts
   onItemActivated results $ stopView view . Just . evText
-  onActivate query $ const $ activateCurrentItem results
-  onKeyPressed query $ \_ key _ -> do
-    case key of
-      KEsc -> stopView view Nothing >> return True
-      KASCII '\t' -> do
+  let act = activateCurrentItem results
+  onActivate query $ const act
+  onKeyPressed query $ \_ key mods -> do
+    case (key, mods) of
+      (KEsc, []) -> stopView view Nothing >> return True
+      (KASCII '\t', []) -> do
         n  <- getListSize results
         mi <- getSelected results
         case mi of
@@ -78,6 +79,8 @@ addListeners view = do
           Just (i, _) | i + 1 == n -> setSelected results 0
           Just (i, _) -> setSelected results (i + 1)
         return True
+      -- vim hack
+      (KASCII 'm', [MCtrl]) -> act >> return True
       _ -> return False
   where
     evText (ActivateItemEvent _ xs _) = xs

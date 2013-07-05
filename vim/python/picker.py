@@ -12,6 +12,5 @@ def picker():
             with os.fdopen(fd) as fh:
                 vim.command("edit %s" % fh.read().rstrip())
     finally:
-        os.close(fd)
         os.unlink(temp)
 
